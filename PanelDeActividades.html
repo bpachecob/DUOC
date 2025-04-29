@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel de Actividades</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+    .actividad {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .estado {
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      color: white;
+    }
+    .pendiente { background-color: #e74c3c; }
+    .proceso { background-color: #f1c40f; }
+    .finalizado { background-color: #2ecc71; }
+    button {
+      padding: 6px 12px;
+      border: none;
+      background-color: #3498db;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .editable {
+      outline: none;
+      border-bottom: 1px dashed #ccc;
+      padding: 2px;
+    }
+    ul {
+      margin: 5px 0 0 20px;
+      padding: 0;
+    }
+    li {
+      list-style: disc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Panel de Actividades</h1>
+
+  <div id="panel"></div>
+
+  <script>
+    const estados = ['pendiente', 'proceso', 'finalizado'];
+    const textos = {
+      pendiente: 'Pendiente',
+      proceso: 'En Proceso',
+      finalizado: 'Finalizado'
+    };
+
+    let actividades = [
+      {
+        nombre: 'Auditorio',
+        estado: 'pendiente',
+        items: ['1 parlante', 'micrófono de mano'],
+        fin: '2025-04-29T11:45'
+      },
+      {
+        nombre: 'Prueba de Equipos',
+        estado: 'proceso',
+        items: ['Cable HDMI'],
+        fin: '2025-04-29T12:00'
+      }
+    ];
+
+    const panel = document.getElementById('panel');
+    const notificacionesActivas = {};
+
+    async function solicitarPermisoNotificaciones() {
+      if (Notification.permission !== 'granted') {
+        await Notification.requestPermission();
+      }
+    }
+
+    function programarNotificacion(act, index) {
+      const ahora = new Date();
+      const fin = new Date(act.fin);
+      const tiempo = fin.getTime() - ahora.getTime();
+
+      if (notificacionesActivas[index]) {
+        clearTimeout(notificacionesActivas[index]);
+      }
+
+      if (tiempo > 0) {
+        notificacionesActivas[index] = setTimeout(() => {
+          if (Notification.permission === 'granted') {
+            new Notification(`🔔 Finalizó: ${act.nombre}`);
+          }
+        }, tiempo);
+      }
+    }
+
+    function render() {
+      panel.innerHTML = '';
+      actividades.forEach((act, index) => {
+        const div = document.createElement('div');
+        div.className = 'actividad';
+
+        const header = document.createElement('div');
+        header.className = 'header';
+
+        const nombre = document.createElement('div');
+        const nombreSpan = document.createElement('span');
+        nombreSpan.contentEditable = true;
+        nombreSpan.className = 'editable';
+        nombreSpan.innerText = act.nombre;
+        nombreSpan.onblur = () => {
+          actividades[index].nombre = nombreSpan.innerText.trim();
+        };
+        nombre.innerHTML = '📝 ';
+        nombre.appendChild(nombreSpan);
+
+        const estado = document.createElement('div');
+        estado.className = `estado ${act.estado}`;
+        estado.innerText = textos[act.estado];
+
+        const btn = document.createElement('button');
+        btn.innerText = 'Cambiar Estado';
+        btn.onclick = () => {
+          const i = estados.indexOf(act.estado);
+          act.estado = estados[(i + 1) % estados.length];
+          render();
+        };
+
+        header.appendChild(nombre);
+        header.appendChild(estado);
+        header.appendChild(btn);
+
+        // Campo editable de hora
+        const horaContainer = document.createElement('div');
+        const label = document.createElement('label');
+        label.innerText = '⏰ Termina: ';
+        const inputHora = document.createElement('input');
+        inputHora.type = 'time';
+        const horaActual = new Date(act.fin);
+        inputHora.value = horaActual.toTimeString().slice(0,5); // "HH:MM"
+        inputHora.onchange = () => {
+          const nuevaHora = inputHora.value;
+          const fechaActual = new Date();
+          const nuevaFecha = new Date(
+            fechaActual.getFullYear(),
+            fechaActual.getMonth(),
+            fechaActual.getDate(),
+            nuevaHora.split(':')[0],
+            nuevaHora.split(':')[1]
+          );
+          actividades[index].fin = nuevaFecha.toISOString();
+          programarNotificacion(act, index);
+        };
+        horaContainer.appendChild(label);
+        horaContainer.appendChild(inputHora);
+
+        // Lista de ítems
+        const lista = document.createElement('ul');
+        act.items.forEach((item, i) => {
+          const li = document.createElement('li');
+          const itemSpan = document.createElement('span');
+          itemSpan.contentEditable = true;
+          itemSpan.className = 'editable';
+          itemSpan.innerText = item;
+          itemSpan.onblur = () => {
+            actividades[index].items[i] = itemSpan.innerText.trim();
+          };
+          li.appendChild(itemSpan);
+          lista.appendChild(li);
+        });
+
+        div.appendChild(header);
+        div.appendChild(horaContainer);
+        if (act.items.length > 0) div.appendChild(lista);
+
+        panel.appendChild(div);
+
+        programarNotificacion(act, index);
+      });
+    }
+
+    solicitarPermisoNotificaciones().then(render);
+  </script>
+</body>
+</html>
